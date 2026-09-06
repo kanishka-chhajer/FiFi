@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// FIFI — a jar is shared by exactly two people and nobody else can see it.
+//
+// The web config is public, so these rules are the only thing standing
+// between a jar and the internet. Every path below is deny-by-default;
+// nothing is readable without being a member of that couple.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function coupleMembers(coupleId) {
+      return get(/databases/$(database)/documents/couples/$(coupleId)).data.members;
+    }
+
+    function isMemberOf(coupleId) {
+      return signedIn() && uid() in coupleMembers(coupleId);
+    }
+
+    // --- users -------------------------------------------------------------
+    // Your own profile, nobody else's.
+    match /users/{userId} {
+      allow read, write: if signedIn() && uid() == userId;
+    }
+
+    // --- invites -----------------------------------------------------------
+    // Readable by anyone signed in who knows the code — that is the point of
+    // an invite. Claimable exactly once, and only by someone who isn't the
+    // person who made it.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.claimedBy == null;
+
+      allow update: if signedIn()
+        && resource.data.claimedBy == null
+        && resource.data.createdBy != uid()
+        && request.resource.data.claimedBy == uid()
+        && request.resource.data.coupleId == resource.data.coupleId
+        && request.resource.data.createdBy == resource.data.createdBy;
+
+      allow delete: if signedIn() && resource.data.createdBy == uid();
+    }
+
+    // --- couples -----------------------------------------------------------
+    match /couples/{coupleId} {
+      allow get: if signedIn() && uid() in resource.data.members;
+      allow list: if false;
+
+      // You may only create a jar with yourself in it.
+      allow create: if signedIn()
+        && request.resource.data.members == [uid()];
+
+      // Two ways to write: you are already a member, or you are the second
+      // person joining a jar that currently holds one. A jar never grows
+      // past two, and members can never be removed or reordered.
+      allow update: if signedIn() && (
+        uid() in resource.data.members
+        || (
+          resource.data.members.size() == 1
+          && request.resource.data.members == resource.data.members.concat([uid()])
+        )
+      );
+
+      allow delete: if false;
+
+      // --- one night of the shared forest ---------------------------------
+      match /nights/{nightId} {
+        allow read, write: if isMemberOf(coupleId);
+
+        // Each firefly. Immutable once released — you cannot un-miss someone,
+        // and neither person can rewrite the other's history.
+        match /taps/{tapId} {
+          allow read: if isMemberOf(coupleId);
+          allow create: if isMemberOf(coupleId)
+            && request.resource.data.uid == uid();
+          allow update, delete: if false;
+        }
+      }
+    }
+  }
+}

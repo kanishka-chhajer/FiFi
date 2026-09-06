@@ -6,6 +6,27 @@ import Stage from "@/components/Stage";
 import { Footer, PrimaryButton } from "@/components/ui";
 import { routeFor, useSession } from "@/lib/session";
 
+/**
+ * Backing out of the Google popup isn't an error, so it says nothing. Every
+ * other case names what actually went wrong — "try again" sends you round the
+ * same loop when the real fix is in the Firebase console.
+ */
+function signInMessage(code: string): string | null {
+  switch (code) {
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return null;
+    case "auth/unauthorized-domain":
+      return "This site isn't an authorised Firebase domain yet.";
+    case "auth/network-request-failed":
+      return "No connection. Check your network and try again?";
+    default:
+      return code
+        ? `Could not sign in (${code.replace("auth/", "")}).`
+        : "Could not sign in. Try again?";
+  }
+}
+
 export default function Welcome() {
   const router = useRouter();
   const session = useSession();
@@ -26,12 +47,7 @@ export default function Welcome() {
       await session.signIn();
       // The effect above takes it from here once the session catches up.
     } catch (e) {
-      const code = (e as { code?: string })?.code ?? "";
-      setError(
-        code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request"
-          ? null
-          : "Could not sign in. Try again?",
-      );
+      setError(signInMessage((e as { code?: string })?.code ?? ""));
       setBusy(false);
     }
   };

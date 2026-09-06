@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut as fbSignOut,
   type User,
 } from "firebase/auth";
@@ -48,7 +49,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async () => {
     const auth = getFirebaseAuth();
     if (!auth) throw new Error("Firebase is not configured");
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      // Plenty of mobile and in-app browsers refuse popups outright. Falling
+      // back to a full-page redirect costs a page load but always works;
+      // onAuthStateChanged picks the session up when we land back here.
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        await signInWithRedirect(auth, new GoogleAuthProvider());
+        return;
+      }
+      console.error("[fifi] sign-in failed:", code || e);
+      throw e;
+    }
   }, []);
 
   const signOut = useCallback(async () => {

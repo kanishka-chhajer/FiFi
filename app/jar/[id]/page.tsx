@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { HistoryIcon, SettingsIcon } from "@/components/icons";
 import Jar from "@/components/Jar";
 import {
   colourById,
   DEFAULT_COLOUR,
+  labelRemaining,
   PARTNER_FALLBACK_COLOUR,
 } from "@/lib/constants";
-import { useTonight } from "@/lib/forest";
+import { useCooldown, useTonight } from "@/lib/forest";
 import { nextReset } from "@/lib/night";
 import { useJar, useSession } from "@/lib/session";
 
@@ -27,6 +28,16 @@ export default function JarScreen() {
   const session = useSession();
   const jar = useJar(id);
   const { fireflies } = useTonight(jar.found ? id : null, jar.nightId);
+  const cooldown = useCooldown(jar.found ? id : null, jar.cooldownMins);
+
+  // Flashes the hint gold when a tap is refused, so the jar acknowledges the
+  // gesture instead of just ignoring it.
+  const [nudged, setNudged] = useState(false);
+  useEffect(() => {
+    if (!nudged) return;
+    const t = window.setTimeout(() => setNudged(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [nudged]);
 
   useEffect(() => {
     if (session.loading) return;
@@ -103,6 +114,8 @@ export default function JarScreen() {
         <FireflyCanvas fireflies={fireflies} jar={JAR_MOUTH} colours={colours} />
 
         <Jar
+          blocked={cooldown.locked}
+          onBlocked={() => setNudged(true)}
           onRelease={() => {
             void jar.releaseFirefly();
           }}
@@ -155,10 +168,26 @@ export default function JarScreen() {
 
         {/* ---- hint, at y=704 of 844 in Figma ---- */}
         <div className="absolute inset-x-0 top-[83.4%] flex justify-center">
-          <span className="rounded-hint bg-scrim/60 px-4 py-2 text-center font-body text-[10px] leading-snug text-text-on-scrim backdrop-blur-sm">
-            Double-tap on the jar when
-            <br />
-            they cross your mind
+          <span
+            className={`rounded-hint px-4 py-2 text-center font-body text-[10px] leading-snug backdrop-blur-sm ${
+              nudged
+                ? "bg-scrim/80 text-[#FFD37A]"
+                : "bg-scrim/60 text-text-on-scrim"
+            }`}
+          >
+            {cooldown.locked ? (
+              <>
+                One firefly at a time.
+                <br />
+                The next can go in {labelRemaining(cooldown.msLeft)}.
+              </>
+            ) : (
+              <>
+                Double-tap on the jar when
+                <br />
+                they cross your mind
+              </>
+            )}
           </span>
         </div>
       </div>

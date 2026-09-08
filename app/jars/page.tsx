@@ -82,8 +82,16 @@ function JarCard({ jar }: { jar: Jar }) {
       await discardJar(jar.id);
       // No need to unset anything — the jar leaves the live list and this
       // card unmounts with it.
-    } catch {
-      setError("Could not discard it. Check your connection?");
+    } catch (e) {
+      // Name the actual reason. A generic "check your connection" hid a
+      // permission-denied for far too long.
+      const code = (e as { code?: string })?.code ?? "";
+      console.error("[fifi] discard failed:", code || e);
+      setError(
+        code === "permission-denied"
+          ? "Not allowed — the Firestore rules still block deleting."
+          : `Could not discard it${code ? ` (${code})` : ""}.`,
+      );
       setBusy(false);
     }
   };

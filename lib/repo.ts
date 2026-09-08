@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  addDoc,
   arrayUnion,
   collection,
   doc,
@@ -47,6 +46,8 @@ export interface CoupleDoc {
   /** uid -> display name, so each side can show the other's first name */
   names: Record<string, string>;
   resetHour: number;
+  /** minutes between one person's fireflies; 0 or absent means no limit */
+  cooldownMins?: number;
   /** the invite code, mirrored here so it's reachable without an invites query */
   inviteCode: string;
   createdAt?: Timestamp;
@@ -158,7 +159,9 @@ function when(j: Jar): number {
 export function watchTonight(
   coupleId: string,
   nightId: string,
-  cb: (taps: { id: string; uid: string; atMs: number }[]) => void,
+  cb: (
+    taps: { id: string; uid: string; atMs: number; pending: boolean }[],
+  ) => void,
 ) {
   const q = query(
     collection(db(), "couples", coupleId, "nights", nightId, "taps"),
@@ -171,12 +174,18 @@ export function watchTonight(
       cb(
         snap.docs.map((d) => {
           const data = d.data() as TapDoc;
+          // A tap you just made has no server timestamp yet. Firestore sorts
+          // null first, so it arrives at the front of a query ordered by
+          // `at` — the caller needs to know, or it will treat the newest
+          // firefly as the oldest.
+          const pending = !data.at;
           return {
             id: d.id,
             uid: data.uid,
-            // A tap we just wrote has no server time yet — treat it as "now"
-            // so it animates immediately.
+            // Treated as "now" so it animates immediately rather than waiting
+            // on the round trip.
             atMs: data.at ? data.at.toMillis() : now,
+            pending,
           };
         }),
       );
@@ -360,13 +369,41 @@ export async function recordTap(
   nightId: string,
 ): Promise<void> {
   const nightRef = doc(db(), "couples", coupleId, "nights", nightId);
-  await Promise.all([
-    addDoc(collection(nightRef, "taps"), {
-      uid,
-      at: serverTimestamp(),
-    }),
-    setDoc(nightRef, { totals: { [uid]: increment(1) } }, { merge: true }),
-    // Lets the shelf lead with whichever jar is most alive tonight.
-    updateDoc(doc(db(), "couples", coupleId), { lastTapAt: serverTimestamp() }),
-  ]);
+
+  // One batch rather than three parallel writes, so a tap that the cooldown
+  // rejects can't still bump the rollup. The rules read the *committed*
+  // cooldown stamp, which is the previous release — exactly what we want to
+  // measure against.
+  const batch = writeBatch(db());
+  batch.set(doc(collection(nightRef, "taps")), { uid, at: serverTimestamp() });
+  batch.set(nightRef, { totals: { [uid]: increment(1) } }, { merge: true });
+  // Lets the shelf lead with whichever jar is most alive tonight.
+  batch.update(doc(db(), "couples", coupleId), { lastTapAt: serverTimestamp() });
+  batch.set(doc(db(), "couples", coupleId, "cooldowns", uid), {
+    at: serverTimestamp(),
+  });
+  await batch.commit();
+}
+
+/** When this person last released a firefly here — drives the countdown. */
+export function watchCooldown(
+  coupleId: string,
+  uid: string,
+  cb: (atMs: number | null) => void,
+) {
+  return onSnapshot(
+    doc(db(), "couples", coupleId, "cooldowns", uid),
+    (snap) => {
+      const at = snap.exists() ? (snap.data().at as Timestamp | null) : null;
+      cb(at ? at.toMillis() : null);
+    },
+    onListenError(`couples/${coupleId}/cooldowns/${uid}`),
+  );
+}
+
+export async function setCooldown(
+  coupleId: string,
+  mins: number,
+): Promise<void> {
+  await updateDoc(doc(db(), "couples", coupleId), { cooldownMins: mins });
 }

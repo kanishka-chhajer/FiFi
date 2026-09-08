@@ -5,6 +5,10 @@ import { useBuzz } from "@/lib/haptics";
 
 interface Props {
   onRelease: () => void;
+  /** true while the cooldown is still running */
+  blocked?: boolean;
+  /** called instead of onRelease when blocked, so the jar can say why */
+  onBlocked?: () => void;
 }
 
 const DOUBLE_TAP_MS = 320;
@@ -28,7 +32,7 @@ const INSIDE = [
 
 export const JAR_CAPACITY = INSIDE.length;
 
-export default function Jar({ onRelease }: Props) {
+export default function Jar({ onRelease, blocked, onBlocked }: Props) {
   const buzz = useBuzz();
   const lastTap = useRef(0);
   const departCycle = useRef(0);
@@ -39,6 +43,13 @@ export default function Jar({ onRelease }: Props) {
     const now = Date.now();
     if (now - lastTap.current < DOUBLE_TAP_MS) {
       lastTap.current = 0;
+
+      // Nothing leaves the jar during the cooldown — animating a departure
+      // the server would refuse is worse than saying no plainly.
+      if (blocked) {
+        onBlocked?.();
+        return;
+      }
 
       // Send one of the resting fireflies up and out, so the one appearing
       // in the forest reads as the one that just left. The jar never runs
@@ -60,7 +71,7 @@ export default function Jar({ onRelease }: Props) {
       buzz(10);
       window.setTimeout(() => setNudge(false), 200);
     }
-  }, [onRelease, buzz]);
+  }, [onRelease, buzz, blocked, onBlocked]);
 
   return (
     <button

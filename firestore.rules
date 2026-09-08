@@ -24,6 +24,27 @@ service cloud.firestore {
       return signedIn() && uid() in coupleMembers(coupleId);
     }
 
+    // --- the cooldown ------------------------------------------------------
+    // How long one person waits between fireflies. Enforced here and not only
+    // in the app: a limit the client can skip by opening devtools is not a
+    // limit, and scarcity is the whole point of a firefly.
+    function cooldownMins(coupleId) {
+      return get(/databases/$(database)/documents/couples/$(coupleId))
+        .data.get('cooldownMins', 15);
+    }
+
+    function cooldownPath(coupleId) {
+      return /databases/$(database)/documents/couples/$(coupleId)/cooldowns/$(uid());
+    }
+
+    // Your own last release. Absent the first time, which always passes.
+    function cooldownElapsed(coupleId) {
+      return cooldownMins(coupleId) <= 0
+        || !exists(cooldownPath(coupleId))
+        || request.time >= get(cooldownPath(coupleId)).data.at
+             + duration.value(cooldownMins(coupleId), 'm');
+    }
+
     // --- users -------------------------------------------------------------
     // Your own profile, nobody else's.
     match /users/{userId} {
@@ -81,6 +102,19 @@ service cloud.firestore {
       // neither of them can delete it out from under the other.
       allow delete: if signedIn() && resource.data.members == [uid()];
 
+      // --- when each person last released ---------------------------------
+      // A document per person, so only you can stamp yours. Keeping it out of
+      // the jar document means neither of you can push the other's next
+      // firefly further away.
+      match /cooldowns/{userId} {
+        allow read: if isMemberOf(coupleId);
+        // Must be the server's clock, or you could backdate your way out of
+        // the wait.
+        allow write: if isMemberOf(coupleId)
+          && userId == uid()
+          && request.resource.data.at == request.time;
+      }
+
       // --- one night of the shared forest ---------------------------------
       match /nights/{nightId} {
         allow read, write: if isMemberOf(coupleId);
@@ -90,7 +124,8 @@ service cloud.firestore {
         match /taps/{tapId} {
           allow read: if isMemberOf(coupleId);
           allow create: if isMemberOf(coupleId)
-            && request.resource.data.uid == uid();
+            && request.resource.data.uid == uid()
+            && cooldownElapsed(coupleId);
           allow update, delete: if false;
         }
       }

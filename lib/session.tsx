@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useAuth } from "./auth";
 import type { FireflyColourId } from "./constants";
+import { DEFAULT_COOLDOWN_MINS } from "./constants";
 import { DEFAULT_RESET_HOUR, nightStart } from "./night";
 import * as repo from "./repo";
 
@@ -112,7 +113,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const discardJar = useCallback(
     async (id: string) => {
       const jar = jars.find((j) => j.id === id);
-      if (!jar || jar.members.length > 1) return;
+      // Throw rather than return: a silent no-op here looked exactly like a
+      // successful delete that didn't delete anything.
+      if (!jar) throw new Error(`no such jar: ${id}`);
+      if (jar.members.length > 1) throw new Error("jar is already shared");
       await repo.deleteJar(id, jar.inviteCode ?? null);
     },
     [jars],
@@ -180,11 +184,14 @@ export interface JarValue {
   partnerName: string;
 
   resetHour: number;
+  /** minutes between one person's fireflies; 0 means no limit */
+  cooldownMins: number;
   /** "YYYY-MM-DD" of the night currently in progress */
   nightId: string;
 
   chooseColour: (c: FireflyColourId) => Promise<void>;
   chooseResetHour: (h: number) => Promise<void>;
+  chooseCooldown: (mins: number) => Promise<void>;
   releaseFirefly: () => Promise<void>;
 }
 
@@ -222,6 +229,14 @@ export function useJar(id: string): JarValue {
     [jar],
   );
 
+  const chooseCooldown = useCallback(
+    async (mins: number) => {
+      if (!jar) return;
+      await repo.setCooldown(jar.id, mins);
+    },
+    [jar],
+  );
+
   const releaseFirefly = useCallback(async () => {
     if (!jar || !uid) return;
     await repo.recordTap(jar.id, uid, nightIdFor(new Date(), resetHour));
@@ -241,10 +256,12 @@ export function useJar(id: string): JarValue {
       partnerUid,
       partnerName,
       resetHour,
+      cooldownMins: jar?.cooldownMins ?? DEFAULT_COOLDOWN_MINS,
       // Recomputed every render: cheap, and never stale on a night boundary.
       nightId: nightIdFor(new Date(), resetHour),
       chooseColour,
       chooseResetHour,
+      chooseCooldown,
       releaseFirefly,
     };
   }, [
@@ -256,6 +273,7 @@ export function useJar(id: string): JarValue {
     resetHour,
     chooseColour,
     chooseResetHour,
+    chooseCooldown,
     releaseFirefly,
   ]);
 }

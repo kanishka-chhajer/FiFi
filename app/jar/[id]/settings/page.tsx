@@ -6,8 +6,10 @@ import Stage from "@/components/Stage";
 import { BackButton } from "@/components/ui";
 import {
   colourById,
+  COOLDOWN_CHOICES,
   DEFAULT_COLOUR,
   FIREFLY_COLOURS,
+  labelCooldown,
   type FireflyColourId,
 } from "@/lib/constants";
 import {
@@ -71,6 +73,26 @@ export default function Settings() {
 
         <GroupLabel>RHYTHM</GroupLabel>
         <Group>
+          <Row label="One firefly">
+            <div className="flex items-center gap-1.5">
+              <Value>{labelCooldown(jar.cooldownMins)}</Value>
+              <select
+                aria-label="How often you can release a firefly"
+                value={jar.cooldownMins}
+                onChange={(e) => {
+                  void jar.chooseCooldown(Number(e.target.value));
+                }}
+                className="absolute inset-y-0 right-0 w-full cursor-pointer opacity-0"
+              >
+                {COOLDOWN_CHOICES.map((m) => (
+                  <option key={m} value={m}>
+                    {labelCooldown(m)}
+                  </option>
+                ))}
+              </select>
+              <Chevron />
+            </div>
+          </Row>
           <Row label="The forest clears at" last>
             <div className="flex items-center gap-1.5">
               <Value>{labelHour(jar.resetHour)}</Value>

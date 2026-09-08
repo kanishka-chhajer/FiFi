@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Stage from "@/components/Stage";
 import {
   BackButton,
@@ -59,6 +59,25 @@ function PairJoin() {
 
   const cells = Array.from({ length: MAX }, (_, i) => code[i] ?? "");
   const complete = code.length === MAX;
+  const typed = complete
+    ? `${code.slice(0, LETTERS)}-${code.slice(LETTERS)}`
+    : null;
+
+  /*
+   * Reopening your own invite link should just open the jar.
+   *
+   * Both people keep the link — it sits in the chat they sent it through — so
+   * tapping it again after pairing is the normal thing to do, not a mistake.
+   * Before this it ran the claim, which failed as "already claimed" and left
+   * you staring at a code entry screen with no way forward.
+   */
+  const alreadyMine = typed
+    ? session.jars.find((j) => j.inviteCode === typed)
+    : undefined;
+
+  useEffect(() => {
+    if (alreadyMine) router.replace(`/jar/${alreadyMine.id}`);
+  }, [alreadyMine, router]);
 
   const connect = async () => {
     if (!complete || busy) return;
@@ -73,9 +92,7 @@ function PairJoin() {
     setBusy(true);
     setError(null);
     try {
-      const id = await session.join(
-        `${code.slice(0, LETTERS)}-${code.slice(LETTERS)}`,
-      );
+      const id = await session.join(typed!);
       router.push(`/jar/${id}/firefly`);
     } catch (e) {
       const key = e instanceof InviteError ? e.code : "";
@@ -121,8 +138,16 @@ function PairJoin() {
           </div>
         </div>
 
-        <p className="mt-4 font-body text-[12.5px] text-text-dim">
-          {error ?? "Codes look like MOTH-7429"}
+        {/* Errors were rendering in the same dim grey as the hint, so a
+            refusal read as nothing having happened at all. */}
+        <p
+          className={`mt-4 font-body text-[12.5px] ${
+            error ? "text-[#FF9E8F]" : "text-text-dim"
+          }`}
+        >
+          {alreadyMine
+            ? "You're already in this jar — opening it…"
+            : (error ?? "Codes look like MOTH-7429")}
         </p>
       </Content>
 

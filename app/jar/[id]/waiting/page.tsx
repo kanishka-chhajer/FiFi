@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Stage from "@/components/Stage";
-import { Footer, PrimaryButton, TextLink } from "@/components/ui";
+import { PrimaryButton, TextLink } from "@/components/ui";
 import { useJar, useSession } from "@/lib/session";
 
 export default function Waiting() {
@@ -46,50 +46,62 @@ export default function Waiting() {
 
   return (
     <Stage veil={0.86}>
-      {/* The jar breathes slowly rather than spinning — no spinners here. */}
       {/*
-        The jar art is about 1.9x as tall as it is wide, so at the old 30.77%
-        it reached down past 62% — where the heading starts. Narrower and
-        higher, it clears the text with room to spare.
+        Laid out as a column rather than positioned at percentages of the
+        frame. The Figma frame is 844 tall; Safari on a phone is shorter than
+        that and changes height as its toolbars collapse, which was pushing the
+        invite code underneath the button. Here the jar gives up space first
+        and nothing can ever land on top of the footer.
       */}
-      <div className="absolute left-1/2 top-[29%] w-[27.5%] -translate-x-1/2">
-        <span className="waiting-halo pointer-events-none absolute left-1/2 top-[58%] -translate-x-1/2 -translate-y-1/2" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/art/jar.svg"
-          alt=""
-          draggable={false}
-          className="no-select waiting-jar relative w-full"
-        />
+      <div
+        className="absolute inset-0 flex flex-col items-center px-7"
+        style={{
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 28px)",
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 30px)",
+        }}
+      >
+        {/* The jar breathes slowly rather than spinning — no spinners here. */}
+        <div className="relative flex min-h-0 flex-1 items-center justify-center">
+          <span className="waiting-halo pointer-events-none absolute left-1/2 top-[58%] -translate-x-1/2 -translate-y-1/2" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/art/jar.svg"
+            alt=""
+            draggable={false}
+            // Height-bound so it shrinks on a short screen instead of
+            // shouldering the text off the bottom.
+            className="no-select waiting-jar relative h-full max-h-[240px] w-auto object-contain"
+          />
+        </div>
+
+        <div className="w-full shrink-0 text-center">
+          <span className="mx-auto mb-4 flex w-fit items-center gap-1.5">
+            <i className="wait-dot" />
+            <i className="wait-dot" style={{ animationDelay: "0.28s" }} />
+            <i className="wait-dot" style={{ animationDelay: "0.56s" }} />
+          </span>
+
+          <h1 className="font-display text-[24px] font-bold leading-tight text-text-primary">
+            Waiting for your person
+          </h1>
+          <p className="mt-3 font-body text-[14px] italic leading-[1.5] text-text-quiet">
+            The forest stays dark until they open the jar.
+          </p>
+
+          <p className="mt-6 font-body text-[11px] font-semibold tracking-[0.27em] text-text-dim">
+            YOUR INVITE CODE
+          </p>
+          {/* Selectable, so the code survives a dismissed share sheet. */}
+          <p className="mt-1 select-all font-serif text-[22px] font-medium tracking-[0.13em] text-gold-moon">
+            {code}
+          </p>
+        </div>
+
+        <div className="mt-7 flex w-full shrink-0 flex-col items-center gap-3">
+          <PrimaryButton onClick={shareAgain}>Send it again</PrimaryButton>
+          <TextLink href="/pair/join">I have a code instead</TextLink>
+        </div>
       </div>
-
-      <div className="absolute inset-x-7 top-[62%] text-center">
-        <span className="mx-auto mb-4 flex w-fit items-center gap-1.5">
-          <i className="wait-dot" />
-          <i className="wait-dot" style={{ animationDelay: "0.28s" }} />
-          <i className="wait-dot" style={{ animationDelay: "0.56s" }} />
-        </span>
-
-        <h1 className="font-display text-[24px] font-bold leading-tight text-text-primary">
-          Waiting for your person
-        </h1>
-        <p className="mt-3 font-body text-[14px] italic leading-[1.5] text-text-quiet">
-          The forest stays dark until they open the jar.
-        </p>
-
-        <p className="mt-6 font-body text-[11px] font-semibold tracking-[0.27em] text-text-dim">
-          YOUR INVITE CODE
-        </p>
-        {/* Selectable, so the code survives a dismissed share sheet. */}
-        <p className="mt-1 select-all font-serif text-[22px] font-medium tracking-[0.13em] text-gold-moon">
-          {code}
-        </p>
-      </div>
-
-      <Footer>
-        <PrimaryButton onClick={shareAgain}>Send it again</PrimaryButton>
-        <TextLink href="/pair/join">I have a code instead</TextLink>
-      </Footer>
     </Stage>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Stage from "@/components/Stage";
 import {
   ActionRow,
+  Chevron,
   Group,
   GroupLabel,
   Row,
@@ -17,6 +18,13 @@ import {
   useHapticsEnabled,
   useHapticsSupported,
 } from "@/lib/haptics";
+import {
+  INSTALL_STEPS,
+  runInstallPrompt,
+  useInstallPrompt,
+  useIsInstalled,
+  usePlatform,
+} from "@/lib/install";
 import { useSession } from "@/lib/session";
 
 /**
@@ -49,9 +57,7 @@ export default function AccountSettings() {
 
         <GroupLabel>THIS DEVICE</GroupLabel>
         <Group>
-          <Row label="Add to home screen">
-            <Value>Coming soon</Value>
-          </Row>
+          <InstallRow />
           <HapticsRow last />
         </Group>
 
@@ -82,6 +88,80 @@ export default function AccountSettings() {
         </p>
       </div>
     </Stage>
+  );
+}
+
+/**
+ * Adding FIFI to the home screen.
+ *
+ * Chrome hands us a real install prompt we can re-open, so there it's one tap.
+ * Safari gives us nothing, so there the row expands into the three steps —
+ * which is the honest version of a feature that cannot be automated.
+ */
+function InstallRow() {
+  const installed = useIsInstalled();
+  const prompt = useInstallPrompt();
+  const platform = usePlatform();
+  const [showing, setShowing] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  if (installed) {
+    return (
+      <Row label="Add to home screen">
+        <Value>Already added</Value>
+      </Row>
+    );
+  }
+
+  if (prompt) {
+    return (
+      <Row label="Add to home screen">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await runInstallPrompt();
+            setBusy(false);
+          }}
+          className="rounded-pill bg-gradient-to-b from-gold-top to-gold-bottom px-3.5 py-1.5 font-body text-[12.5px] font-medium text-ink disabled:opacity-60"
+        >
+          {busy ? "Adding…" : "Add"}
+        </button>
+      </Row>
+    );
+  }
+
+  return (
+    <div className="border-b border-white/[0.07]">
+      <button
+        type="button"
+        onClick={() => setShowing((s) => !s)}
+        aria-expanded={showing}
+        className="flex w-full items-center justify-between px-3.5 py-[13px] text-left font-body text-[14px] text-text-primary"
+      >
+        <span>Add to home screen</span>
+        <span className="flex items-center gap-2">
+          <Value>{showing ? "" : "How"}</Value>
+          <Chevron open={showing} />
+        </span>
+      </button>
+
+      {showing && (
+        <ol className="space-y-2 px-3.5 pb-4 pt-0.5">
+          {INSTALL_STEPS[platform].map((step, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="mt-[1px] grid size-[18px] shrink-0 place-items-center rounded-full bg-white/[0.08] font-body text-[10.5px] text-text-muted">
+                {i + 1}
+              </span>
+              <span className="font-body text-[12.5px] leading-[1.5] text-text-dim">
+                {step}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

@@ -28,12 +28,21 @@ export function Body({ children }: { children: ReactNode }) {
   );
 }
 
-export function BackButton() {
+/**
+ * `fallback` matters more than it looks. An invite link opens in a fresh tab
+ * with no history, so router.back() has nowhere to go and the button appears
+ * dead — which is exactly what happens to anyone arriving from a shared link.
+ */
+export function BackButton({ fallback = "/jars" }: { fallback?: string } = {}) {
   const router = useRouter();
   return (
     <button
       type="button"
-      onClick={() => router.back()}
+      onClick={() => {
+        // A fresh tab has a single entry: this page.
+        if (window.history.length > 1) router.back();
+        else router.replace(fallback);
+      }}
       aria-label="Back"
       className="absolute left-5 grid size-10 place-items-center rounded-full border border-white/10 bg-scrim/50 text-text-on-scrim backdrop-blur-sm"
       style={{ top: "calc(env(safe-area-inset-top, 0px) + 56px)" }}
@@ -46,11 +55,25 @@ export function BackButton() {
 }
 
 /** Content column. Figma starts every onboarding screen's copy at y=110. */
+/**
+ * The body of a screen, between the header area and the footer.
+ *
+ * Bounded at the bottom rather than left to run on. It used to be positioned
+ * only from the top, which is fine at the 844-tall Figma frame but not on a
+ * phone: Safari's viewport is shorter and shrinks further as its toolbars
+ * appear, and the taller screens ended up printing their text straight
+ * through the button. Reserving the footer's space and scrolling anything
+ * that still doesn't fit makes an overlap impossible at any height.
+ */
 export function Content({ children }: { children: ReactNode }) {
   return (
     <div
-      className="absolute inset-x-6"
-      style={{ top: "calc(env(safe-area-inset-top, 0px) + 110px)" }}
+      className="absolute inset-x-6 overflow-y-auto overscroll-contain"
+      style={{
+        top: "calc(env(safe-area-inset-top, 0px) + 110px)",
+        // 30px footer offset + a button, its gap, and the text link beneath.
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
+      }}
     >
       {children}
     </div>

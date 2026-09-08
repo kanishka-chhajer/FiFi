@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SettingsIcon } from "@/components/icons";
+import Loading from "@/components/Loading";
 import Stage from "@/components/Stage";
 import { Content, Footer, PrimaryButton, TextLink } from "@/components/ui";
 import {
@@ -58,7 +59,11 @@ export default function Jars() {
               : "Tap one to open its forest."}
         </p>
 
-        {empty ? (
+        {session.loading ? (
+          // Without this the shelf reads as "you have no jars" for as long as
+          // the query takes, which is alarming for a moment.
+          <Loading label="Finding your jars…" />
+        ) : empty ? (
           <p className="mt-8 font-body text-[14px] italic leading-relaxed text-text-quiet">
             Start a jar with someone, and every time either of you thinks of the
             other, a firefly joins the forest you share.

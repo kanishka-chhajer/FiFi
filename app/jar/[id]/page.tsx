@@ -6,6 +6,7 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { HistoryIcon, SettingsIcon } from "@/components/icons";
 import Jar from "@/components/Jar";
+import { Dots } from "@/components/Loading";
 import {
   colourById,
   DEFAULT_COLOUR,
@@ -90,9 +91,9 @@ export default function JarScreen() {
   }, [jar.nightId]);
 
   return (
-    // h-dvh, not min-h-dvh: the forest is a fixed composition with nothing
-    // below the fold, so the frame should never be taller than the window.
-    <main className="flex h-screen h-dvh justify-center overflow-hidden bg-night-deep">
+    // A fixed-height frame, not a minimum: the forest is a fixed composition
+    // with nothing below the fold, so it never exceeds the window.
+    <main className="flex frame justify-center overflow-hidden bg-night-deep">
       <div className="relative h-full w-full max-w-[440px] overflow-hidden">
         {/*
           Figma places the 719x1159 background at (-315,-57) inside the 390x844
@@ -115,6 +116,14 @@ export default function JarScreen() {
         />
 
         <FireflyCanvas fireflies={fireflies} jar={JAR_MOUTH} colours={colours} />
+
+        {/* Until the jar arrives there is nothing to tap and nothing to show,
+            so say so rather than presenting an empty forest as the answer. */}
+        {session.loading && (
+          <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+            <Dots />
+          </div>
+        )}
 
         <Jar
           blocked={cooldown.locked}

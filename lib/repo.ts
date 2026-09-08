@@ -278,6 +278,27 @@ export async function createCoupleWithInvite(user: User): Promise<string> {
   return coupleRef.id;
 }
 
+export type InviteState = "free" | "not-found" | "claimed" | "own";
+
+/**
+ * Looks at an invite without claiming it, so the screen can say a code is
+ * spent before anyone taps Connect.
+ *
+ * Needs a signed-in user: the rules only allow reading an invite once you are
+ * authenticated, which is why this can't run for a signed-out visitor.
+ */
+export async function peekInvite(
+  code: string,
+  uid: string,
+): Promise<InviteState> {
+  const snap = await getDoc(doc(db(), "invites", code.toUpperCase().trim()));
+  if (!snap.exists()) return "not-found";
+  const data = snap.data() as InviteDoc;
+  if (data.claimedBy) return "claimed";
+  if (data.createdBy === uid) return "own";
+  return "free";
+}
+
 export class InviteError extends Error {
   constructor(
     public code:

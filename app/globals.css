@@ -60,6 +60,39 @@ body {
   overflow: hidden;
 }
 
+/*
+ * The phone-shaped frame every screen sits in.
+ *
+ * Both declarations live in one rule on purpose. Writing `h-screen h-dvh` in
+ * a class attribute does NOT give you a fallback: Tailwind decides the order
+ * utilities appear in the stylesheet, and it emits .h-screen after .h-dvh —
+ * so 100vh won everywhere. On iOS that is the *large* viewport, taller than
+ * what you can see while Safari's toolbars are up, which pushed each screen's
+ * footer below the fold. Inside a single rule the order is ours, so browsers
+ * with dvh take it and the rest keep vh.
+ */
+.frame {
+  height: 100dvh;
+}
+
+.frame-min {
+  min-height: 100dvh;
+}
+
+/*
+ * Stated as @supports rather than two declarations in a row: the CSS
+ * optimiser sees the duplicate pair as redundant and drops the first one, so
+ * the vh fallback disappeared from the built stylesheet entirely.
+ */
+@supports not (height: 100dvh) {
+  .frame {
+    height: 100vh;
+  }
+  .frame-min {
+    min-height: 100vh;
+  }
+}
+
 /* The core gesture is a double-tap. Without this Safari zooms instead. */
 * {
   touch-action: manipulation;

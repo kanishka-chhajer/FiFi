@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Dots } from "@/components/Loading";
 import Stage from "@/components/Stage";
 import {
   BackButton,
@@ -116,10 +117,17 @@ export default function PairInvite() {
           <p className="font-body text-[11px] font-semibold tracking-[0.27em] text-text-dim">
             YOUR INVITE CODE
           </p>
-          {/* Selectable, so the code is still reachable if copying fails. */}
-          <p className="mt-2 select-all font-serif text-[30px] font-medium tracking-[0.13em] text-gold-moon">
-            {code}
-          </p>
+          {ready ? (
+            // Selectable, so the code is still reachable if copying fails.
+            <p className="mt-2 select-all font-serif text-[30px] font-medium tracking-[0.13em] text-gold-moon">
+              {code}
+            </p>
+          ) : (
+            // A row of dashes looked like a code that had failed to load.
+            <div className="mt-2 flex h-[42px] items-center justify-center">
+              <Dots />
+            </div>
+          )}
         </div>
 
         {error && (

@@ -10,7 +10,8 @@ import {
 } from "@/lib/constants";
 import { makeFirefly } from "@/lib/fireflies";
 import { totalFor, useNightHistory } from "@/lib/forest";
-import { nightIdFor, useSession } from "@/lib/session";
+import { useParams } from "next/navigation";
+import { nightIdFor, useJar } from "@/lib/session";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -48,11 +49,12 @@ function keyOf(d: Date): string {
 }
 
 export default function Nights() {
-  const session = useSession();
-  const history = useNightHistory();
+  const id = String(useParams().id);
+  const jar = useJar(id);
+  const history = useNightHistory(jar.found ? id : null, jar.partnerUid);
 
   const today = useMemo(() => new Date(), []);
-  const todayKey = nightIdFor(today, session.resetHour);
+  const todayKey = nightIdFor(today, jar.resetHour);
 
   const month = useMemo(() => {
     const first = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -125,9 +127,26 @@ export default function Nights() {
           )}
         </div>
 
-        <p className="mt-1 font-body text-[13px] text-text-dim">
-          {MONTHS[today.getMonth()]} {today.getFullYear()}
-        </p>
+        <div className="mt-1 flex items-baseline justify-between gap-3">
+          <p className="font-body text-[13px] text-text-dim">
+            {MONTHS[today.getMonth()]} {today.getFullYear()}
+          </p>
+          {/* Says outright which mark is which, rather than leaving it to be
+              inferred from two similar-looking circles. */}
+          <div className="flex items-center gap-3 font-body text-[10.5px] text-text-dim">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="size-[11px] shrink-0 rounded-full"
+                style={{ boxShadow: "inset 0 0 0 1.5px rgba(255,211,122,0.9)" }}
+              />
+              Today
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-[11px] shrink-0 rounded-full bg-gold" />
+              Showing
+            </span>
+          </div>
+        </div>
 
         <div className="mt-4 grid grid-cols-7 gap-1.5">
           {WEEKDAYS.map((w, i) => (
@@ -144,6 +163,7 @@ export default function Nights() {
             const k = keyOf(d);
             const total = totalFor(history[k]);
             const isToday = k === todayKey;
+            const isSelected = k === shown;
             // Brightness tracks how full that night got, against the best one.
             const g = max > 0 ? Math.min(1, total / max) : 0;
             return (
@@ -152,24 +172,44 @@ export default function Nights() {
                 type="button"
                 onClick={() => setSelected(k)}
                 aria-label={`${d.getDate()}, ${total} fireflies`}
-                aria-pressed={shown === k}
+                aria-pressed={isSelected}
+                aria-current={isToday ? "date" : undefined}
                 className="relative grid h-9 place-items-center"
               >
+                {/*
+                  Two different shapes rather than two weights of the same one:
+                  selection is a solid gold disc with dark text, today is a
+                  hollow outline. A filled circle and a ring are unmistakable
+                  at a glance, where a big dot and a small dot were not.
+                */}
                 <span
                   className="absolute size-[34px] rounded-full"
                   style={{
-                    backgroundColor:
-                      g > 0 ? `rgba(255,211,122,${0.06 + g * 0.3})` : undefined,
-                    boxShadow: isToday ? "inset 0 0 0 1.5px #FFD37A" : undefined,
+                    backgroundColor: isSelected
+                      ? "#FFD37A"
+                      : g > 0
+                        ? `rgba(255,211,122,${0.06 + g * 0.3})`
+                        : undefined,
+                    boxShadow: isSelected
+                      ? // When today is also the selection, a detached outer
+                        // ring keeps both readings visible at once.
+                        isToday
+                        ? "0 0 0 2px #0A1831, 0 0 0 3.5px rgba(255,211,122,0.75)"
+                        : "0 0 12px 2px rgba(255,211,122,0.3)"
+                      : isToday
+                        ? "inset 0 0 0 1.5px rgba(255,211,122,0.9)"
+                        : undefined,
                   }}
                 />
                 <span
                   className={`relative font-body text-[11.5px] ${
-                    isToday
-                      ? "text-white"
-                      : total > 0
-                        ? "text-text-secondary"
-                        : "text-text-dim"
+                    isSelected
+                      ? "font-semibold text-ink"
+                      : isToday
+                        ? "text-white"
+                        : total > 0
+                          ? "text-text-secondary"
+                          : "text-text-dim"
                   }`}
                 >
                   {d.getDate()}
@@ -184,9 +224,9 @@ export default function Nights() {
           total={shownTotal}
           isBusiest={busiest?.key === shown && shownTotal > 0}
           you={shownTotals?.you ?? 0}
-          yourHex={colourById(session.myColour)?.hex ?? DEFAULT_COLOUR}
+          yourHex={colourById(jar.myColour)?.hex ?? DEFAULT_COLOUR}
           partnerHex={
-            colourById(session.partnerColour)?.hex ?? PARTNER_FALLBACK_COLOUR
+            colourById(jar.partnerColour)?.hex ?? PARTNER_FALLBACK_COLOUR
           }
         />
 

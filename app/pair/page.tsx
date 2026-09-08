@@ -49,25 +49,37 @@ export default function PairInvite() {
   const minting = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * The jar being invited into: whichever of yours is still waiting on a
+   * second person. Derived rather than stored, so the newly minted jar simply
+   * appears here when the live membership query catches up — no state to
+   * assign from inside an effect.
+   */
+  const pending = session.jars.find((j) => j.members.length === 1) ?? null;
+  const jarId = pending?.id ?? null;
+
   useEffect(() => {
     if (session.loading) return;
     if (!session.signedIn) {
       router.replace("/");
       return;
     }
-    // One jar per person. The ref guard matters because React runs effects
-    // twice in development, and without it you'd get two couples.
-    if (!session.hasJar && !minting.current) {
+    // Only mint when there is no unclaimed invite to reuse. Without this,
+    // backing out of this screen and returning left a trail of identical
+    // "waiting" jars on the shelf, none of them distinguishable.
+    // The ref guard still matters: React runs effects twice in development,
+    // and without it you'd get two jars per visit.
+    if (!pending && !minting.current) {
       minting.current = true;
       session.createJar().catch(() => {
         minting.current = false;
         setError("Could not create your jar. Check your connection?");
       });
     }
-  }, [session, router]);
+  }, [session, router, pending]);
 
-  const code = session.inviteCode ?? "————————";
-  const ready = Boolean(session.inviteCode);
+  const code = pending?.inviteCode ?? "————————";
+  const ready = Boolean(pending?.inviteCode);
 
   const shareAndContinue = async () => {
     if (!ready) return;
@@ -79,14 +91,14 @@ export default function PairInvite() {
           text: "Share a jar of fireflies with me.",
           url,
         });
-        router.push("/firefly");
+        router.push(`/jar/${jarId}/firefly`);
         return;
       } catch {
         /* dismissed — fall through to copying */
       }
     }
     await copyText(url);
-    router.push("/firefly");
+    router.push(`/jar/${jarId}/firefly`);
   };
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useBuzz } from "@/lib/haptics";
 
 interface Props {
   onRelease: () => void;
@@ -28,6 +29,7 @@ const INSIDE = [
 export const JAR_CAPACITY = INSIDE.length;
 
 export default function Jar({ onRelease }: Props) {
+  const buzz = useBuzz();
   const lastTap = useRef(0);
   const departCycle = useRef(0);
   const [nudge, setNudge] = useState(false);
@@ -47,15 +49,18 @@ export default function Jar({ onRelease }: Props) {
       window.setTimeout(() => setDeparting(null), DEPART_MS);
 
       onRelease();
-      navigator.vibrate?.(18);
+      // Two short pulses: the release should feel different under the thumb
+      // from the single tick that acknowledges the first tap.
+      buzz([14, 40, 22]);
     } else {
       // First tap of a possible pair — acknowledge it so the jar never feels
       // dead, but don't release anything yet.
       lastTap.current = now;
       setNudge(true);
+      buzz(10);
       window.setTimeout(() => setNudge(false), 200);
     }
-  }, [onRelease]);
+  }, [onRelease, buzz]);
 
   return (
     <button

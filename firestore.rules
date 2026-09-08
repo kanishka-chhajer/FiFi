@@ -54,8 +54,12 @@ service cloud.firestore {
 
     // --- couples -----------------------------------------------------------
     match /couples/{coupleId} {
-      allow get: if signedIn() && uid() in resource.data.members;
-      allow list: if false;
+      // read covers both get and list. Rules are not filters: a list only
+      // succeeds if the query itself is constrained so every document it can
+      // return satisfies this, which is exactly what
+      //   where("members", "array-contains", uid)
+      // does. So you can enumerate your own jars and no one else's.
+      allow read: if signedIn() && uid() in resource.data.members;
 
       // You may only create a jar with yourself in it.
       allow create: if signedIn()
@@ -72,7 +76,10 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if false;
+      // Only a jar still waiting on its second person, and only by the person
+      // who made it. Once two people are in, the forest is shared history and
+      // neither of them can delete it out from under the other.
+      allow delete: if signedIn() && resource.data.members == [uid()];
 
       // --- one night of the shared forest ---------------------------------
       match /nights/{nightId} {

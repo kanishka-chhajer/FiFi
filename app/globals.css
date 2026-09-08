@@ -331,3 +331,76 @@ body {
     opacity: 0.7;
   }
 }
+
+/* --- /how: the three explainer scenes ----------------------------------- */
+/*
+ * Deliberately slow, low-contrast and never in unison. This screen is being
+ * read, so the motion exists to hint at the mechanic underneath each step —
+ * it must not compete with the words next to it.
+ */
+
+/* 1 — the double-tap, leaving the jar as two rings */
+.hs-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hs-ripple 4.2s ease-out infinite;
+}
+
+@keyframes hs-ripple {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  /* Fades well before the end, so most of the cycle is a resting jar. */
+  70%,
+  100% {
+    transform: scale(1.14);
+    opacity: 0;
+  }
+}
+
+/* 2 — the flight path, its dashes travelling toward the far light */
+.hs-trail {
+  animation: hs-trail 2s linear infinite;
+}
+
+@keyframes hs-trail {
+  to {
+    /* one full dash period (2 on, 4 off) */
+    stroke-dashoffset: -6;
+  }
+}
+
+/*
+ * 3 — every light breathes.
+ *
+ * Scaled rather than faded on purpose: the dawn-dimmed lights carry their own
+ * opacity attribute, and animating opacity in CSS would override it and light
+ * them back up.
+ */
+.hs-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hs-spark 3.4s ease-in-out infinite;
+}
+
+@keyframes hs-spark {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hs-ripple,
+  .hs-trail,
+  .hs-spark {
+    animation: none;
+  }
+}

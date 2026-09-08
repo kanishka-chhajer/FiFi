@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Logo from "@/components/Logo";
 import Stage from "@/components/Stage";
 import { Footer, PrimaryButton } from "@/components/ui";
-import { routeFor, useSession } from "@/lib/session";
+import { useSession } from "@/lib/session";
 
 /**
  * Backing out of the Google popup isn't an error, so it says nothing. Every
@@ -33,11 +34,11 @@ export default function Welcome() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A returning visitor is already signed in — send them wherever they left
-  // off rather than making them press Begin again.
+  // A returning visitor is already signed in — send them to their shelf
+  // rather than making them press Begin again.
   useEffect(() => {
     if (session.loading || !session.signedIn) return;
-    router.replace(routeFor(session));
+    router.replace("/jars");
   }, [session, router]);
 
   const begin = async () => {
@@ -54,13 +55,11 @@ export default function Welcome() {
 
   return (
     <Stage bg="welcome" veil={0.82}>
-      {/* Figma: Hanken Grotesk SemiBold 30, 4px tracking, y=109 */}
-      <p
-        className="absolute inset-x-0 text-center font-body text-[30px] font-semibold tracking-[4px] text-text-dim"
-        style={{ top: "calc(env(safe-area-inset-top, 0px) + 109px)" }}
-      >
-        FiFi
-      </p>
+      {/* Sits where the Figma wordmark did (y=109), now as the real mark. */}
+      <Logo
+        className="absolute left-1/2 w-[112px] -translate-x-1/2 text-gold-moon"
+        style={{ top: "calc(env(safe-area-inset-top, 0px) + 104px)" }}
+      />
 
       {/*
         The jar is baked into welcome-bg.svg and sits under the scrim, so only

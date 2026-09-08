@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Stage from "@/components/Stage";
 import {
@@ -13,23 +13,25 @@ import {
   Title,
 } from "@/components/ui";
 import { colourById, FIREFLY_COLOURS, FireflyColourId } from "@/lib/constants";
-import { useSession } from "@/lib/session";
+import { useJar, useSession } from "@/lib/session";
 
 export default function ChooseFirefly() {
   const router = useRouter();
+  const id = String(useParams().id);
   const session = useSession();
+  const jar = useJar(id);
 
   useEffect(() => {
     if (session.loading) return;
     if (!session.signedIn) router.replace("/");
-    else if (!session.hasJar) router.replace("/pair");
-  }, [session, router]);
+    else if (!jar.found) router.replace("/jars");
+  }, [session, jar, id, router]);
 
   // Nothing is taken until the other person has actually picked. While
   // they're still accepting the invite, all six are on offer.
-  const takenId = session.partnerColour;
+  const takenId = jar.partnerColour;
   const taken = colourById(takenId);
-  const valid = session.myColour !== null && session.myColour !== takenId;
+  const valid = jar.myColour !== null && jar.myColour !== takenId;
 
   return (
     <Stage veil={0.82}>
@@ -38,7 +40,7 @@ export default function ChooseFirefly() {
         <Overline>STEP 2 OF 2</Overline>
         <Title>Choose your firefly</Title>
         <Body>
-          This is how {session.partnerName} will know a light is you thinking of
+          This is how {jar.partnerName} will know a light is you thinking of
           them.
         </Body>
 
@@ -49,9 +51,9 @@ export default function ChooseFirefly() {
               hex={c.hex}
               name={c.name}
               taken={c.id === takenId}
-              selected={c.id !== takenId && session.myColour === c.id}
+              selected={c.id !== takenId && jar.myColour === c.id}
               onSelect={() => {
-                void session.chooseColour(c.id as FireflyColourId);
+                void jar.chooseColour(c.id as FireflyColourId);
               }}
             />
           ))}
@@ -59,13 +61,16 @@ export default function ChooseFirefly() {
 
         {taken && (
           <p className="mt-7 font-body text-[12px] text-text-dim">
-            {taken.name} is already {session.partnerName}&rsquo;s
+            {taken.name} is already {jar.partnerName}&rsquo;s
           </p>
         )}
       </Content>
 
       <Footer>
-        <PrimaryButton disabled={!valid} onClick={() => router.push("/how")}>
+        <PrimaryButton
+          disabled={!valid}
+          onClick={() => router.push(`/jar/${id}/how`)}
+        >
           This one
         </PrimaryButton>
       </Footer>

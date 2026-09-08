@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useReducer } from "react";
 import FireflyCanvas from "@/components/FireflyCanvas";
 import { HistoryIcon, SettingsIcon } from "@/components/icons";
@@ -13,7 +13,7 @@ import {
 } from "@/lib/constants";
 import { useTonight } from "@/lib/forest";
 import { nextReset } from "@/lib/night";
-import { useSession } from "@/lib/session";
+import { useJar, useSession } from "@/lib/session";
 
 /**
  * Where fireflies are born, as a fraction of the stage — the jar mouth.
@@ -23,28 +23,32 @@ const JAR_MOUTH = { x: 0.484, y: 0.6 };
 
 export default function JarScreen() {
   const router = useRouter();
+  const id = String(useParams().id);
   const session = useSession();
-  const { fireflies } = useTonight();
+  const jar = useJar(id);
+  const { fireflies } = useTonight(jar.found ? id : null, jar.nightId);
 
   useEffect(() => {
     if (session.loading) return;
     if (!session.signedIn) router.replace("/");
-    else if (!session.hasJar) router.replace("/pair");
-    else if (!session.paired) router.replace("/waiting");
-  }, [session, router]);
+    // A jar missing from your list is either gone or was never yours.
+    else if (!jar.found) router.replace("/jars");
+    else if (!jar.myColour) router.replace(`/jar/${id}/firefly`);
+    else if (!jar.paired) router.replace(`/jar/${id}/waiting`);
+  }, [session, jar, id, router]);
 
-  const yourColour = colourById(session.myColour)?.hex ?? DEFAULT_COLOUR;
+  const yourColour = colourById(jar.myColour)?.hex ?? DEFAULT_COLOUR;
   const partnerColour =
-    colourById(session.partnerColour)?.hex ?? PARTNER_FALLBACK_COLOUR;
+    colourById(jar.partnerColour)?.hex ?? PARTNER_FALLBACK_COLOUR;
 
   // Nothing else would re-render us at the boundary, so nudge it — the night
   // id then changes and useTonight resubscribes to a fresh, empty night.
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
-    const ms = nextReset(new Date(), session.resetHour).getTime() - Date.now();
+    const ms = nextReset(new Date(), jar.resetHour).getTime() - Date.now();
     const t = window.setTimeout(tick, Math.max(1000, ms));
     return () => window.clearTimeout(t);
-  }, [session.resetHour, session.nightId]);
+  }, [jar.resetHour, jar.nightId]);
 
   const colours = useMemo(
     () => ({ you: yourColour, partner: partnerColour }),
@@ -64,7 +68,7 @@ export default function JarScreen() {
   const empty = fireflies.length === 0;
 
   const dateLabel = useMemo(() => {
-    const [y, m, d] = session.nightId.split("-").map(Number);
+    const [y, m, d] = jar.nightId.split("-").map(Number);
     const dt = new Date(y, m - 1, d);
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const months = [
@@ -72,7 +76,7 @@ export default function JarScreen() {
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
     return `${days[dt.getDay()]} ${dt.getDate()} ${months[dt.getMonth()]}`;
-  }, [session.nightId]);
+  }, [jar.nightId]);
 
   return (
     <main className="flex min-h-dvh justify-center bg-night-deep">
@@ -100,7 +104,7 @@ export default function JarScreen() {
 
         <Jar
           onRelease={() => {
-            void session.releaseFirefly();
+            void jar.releaseFirefly();
           }}
         />
 
@@ -109,8 +113,9 @@ export default function JarScreen() {
           className="absolute inset-x-5 flex items-center justify-between"
           style={{ top: "calc(env(safe-area-inset-top, 0px) + 56px)" }}
         >
-          <IconButton label="Your nights" href="/nights">
-            <HistoryIcon />
+          {/* The only way back to the shelf — without it a jar is a dead end. */}
+          <IconButton label="Your jars" href="/jars">
+            <BackIcon />
           </IconButton>
 
           {empty ? (
@@ -119,7 +124,7 @@ export default function JarScreen() {
             <Pill>
               <Dot hex={partnerColour} />
               <span>
-                {session.partnerName} {counts.partner}
+                {jar.partnerName} {counts.partner}
               </span>
               <span className="text-text-dim">·</span>
               <Dot hex={yourColour} />
@@ -127,9 +132,14 @@ export default function JarScreen() {
             </Pill>
           )}
 
-          <IconButton label="Settings" href="/settings">
-            <SettingsIcon />
-          </IconButton>
+          <span className="flex items-center gap-2">
+            <IconButton label="Your nights" href={`/jar/${id}/nights`}>
+              <HistoryIcon />
+            </IconButton>
+            <IconButton label="Settings" href={`/jar/${id}/settings`}>
+              <SettingsIcon />
+            </IconButton>
+          </span>
         </div>
 
         {empty && (
@@ -153,6 +163,21 @@ export default function JarScreen() {
         </div>
       </div>
     </main>
+  );
+}
+
+/** Matches the chevron weight of BackButton on the onboarding screens. */
+function BackIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M15 5l-7 7 7 7"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

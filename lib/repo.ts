@@ -10,6 +10,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
   runTransaction,
   serverTimestamp,
   setDoc,
@@ -28,7 +29,13 @@ import type { FireflyColourId } from "./constants";
 /* -------------------------------------------------------------------------- */
 
 export interface UserDoc {
-  coupleId: string | null;
+  /**
+   * Legacy. Jars are found by querying couples for membership, so nothing
+   * reads this any more — it is left on existing documents rather than
+   * migrated away, since it costs nothing and rewriting live data to delete a
+   * field nobody reads would be the riskier move.
+   */
+  coupleId?: string | null;
   name: string;
 }
 
@@ -43,7 +50,12 @@ export interface CoupleDoc {
   /** the invite code, mirrored here so it's reachable without an invites query */
   inviteCode: string;
   createdAt?: Timestamp;
+  /** Stamped on every release, so the shelf can lead with the liveliest jar. */
+  lastTapAt?: Timestamp;
 }
+
+/** A jar with its id, which is how every screen refers to one. */
+export type Jar = CoupleDoc & { id: string };
 
 export interface InviteDoc {
   coupleId: string;
@@ -109,15 +121,38 @@ export function watchUser(uid: string, cb: (doc: UserDoc | null) => void) {
   );
 }
 
-export function watchCouple(
-  coupleId: string,
-  cb: (doc: CoupleDoc | null) => void,
-) {
-  return onSnapshot(
-    doc(db(), "couples", coupleId),
-    (snap) => cb(snap.exists() ? (snap.data() as CoupleDoc) : null),
-    onListenError(`couples/${coupleId}`),
+/**
+ * Every jar this person is in, live.
+ *
+ * One query feeds both the shelf and whichever jar is open, so opening a jar
+ * costs no extra listener — it is a lookup in a list already streaming.
+ *
+ * Sorted here rather than in the query: ordering an array-contains query by
+ * another field needs a composite index, and the list is small enough that
+ * doing it locally avoids that deployment step entirely.
+ */
+export function watchMyJars(uid: string, cb: (jars: Jar[]) => void) {
+  const q = query(
+    collection(db(), "couples"),
+    where("members", "array-contains", uid),
   );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const jars = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as CoupleDoc),
+      }));
+      jars.sort((a, b) => when(b) - when(a));
+      cb(jars);
+    },
+    onListenError("couples (mine)"),
+  );
+}
+
+/** Liveliest first: last release, else when the jar was made. */
+function when(j: Jar): number {
+  return j.lastTapAt?.toMillis() ?? j.createdAt?.toMillis() ?? 0;
 }
 
 export function watchTonight(
@@ -150,6 +185,19 @@ export function watchTonight(
   );
 }
 
+/** One night's rollup — the shelf's per-jar count, without the taps. */
+export function watchNight(
+  coupleId: string,
+  nightId: string,
+  cb: (doc: NightDoc | null) => void,
+) {
+  return onSnapshot(
+    doc(db(), "couples", coupleId, "nights", nightId),
+    (snap) => cb(snap.exists() ? (snap.data() as NightDoc) : null),
+    onListenError(`couples/${coupleId}/nights/${nightId}`),
+  );
+}
+
 export function watchNights(
   coupleId: string,
   cb: (nights: Record<string, Record<string, number>>) => void,
@@ -177,16 +225,14 @@ export async function ensureUserDoc(user: User): Promise<void> {
   const ref = doc(db(), "users", user.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    await setDoc(ref, {
-      coupleId: null,
-      name: firstName(user),
-    } satisfies UserDoc);
+    await setDoc(ref, { name: firstName(user) } satisfies UserDoc);
   }
 }
 
 /**
  * Creates a fresh jar with just this person in it, plus an invite code that
- * points at it. Returns the code to share.
+ * points at it. Returns the jar's id — the code to share rides along on the
+ * jar document, which the caller is already listening to.
  */
 export async function createCoupleWithInvite(user: User): Promise<string> {
   const coupleRef = doc(collection(db(), "couples"));
@@ -207,14 +253,9 @@ export async function createCoupleWithInvite(user: User): Promise<string> {
     createdBy: user.uid,
     claimedBy: null,
   } satisfies InviteDoc);
-  batch.set(
-    doc(db(), "users", user.uid),
-    { coupleId: coupleRef.id },
-    { merge: true },
-  );
   await batch.commit();
 
-  return code;
+  return coupleRef.id;
 }
 
 export class InviteError extends Error {
@@ -223,7 +264,8 @@ export class InviteError extends Error {
       | "not-found"
       | "already-claimed"
       | "own-invite"
-      | "already-paired",
+      /** you and this person already share a jar */
+      | "duplicate",
   ) {
     super(code);
   }
@@ -232,23 +274,28 @@ export class InviteError extends Error {
 /**
  * Joins the jar an invite points at. Runs as a transaction so two people
  * racing on the same code can't both win.
+ *
+ * `existingPartners` is the set of people you already share a jar with. It is
+ * a usability guard, not a security one — a second jar with the same person
+ * would silently split your history in two, which is nobody's intent.
  */
-export async function claimInvite(user: User, rawCode: string): Promise<void> {
+export async function claimInvite(
+  user: User,
+  rawCode: string,
+  existingPartners: string[] = [],
+): Promise<string> {
   const code = rawCode.toUpperCase().trim();
   const inviteRef = doc(db(), "invites", code);
-  const meRef = doc(db(), "users", user.uid);
 
-  await runTransaction(db(), async (tx) => {
+  return runTransaction(db(), async (tx) => {
     const invite = await tx.get(inviteRef);
     if (!invite.exists()) throw new InviteError("not-found");
 
     const data = invite.data() as InviteDoc;
     if (data.claimedBy) throw new InviteError("already-claimed");
     if (data.createdBy === user.uid) throw new InviteError("own-invite");
-
-    const me = await tx.get(meRef);
-    if (me.exists() && (me.data() as UserDoc).coupleId) {
-      throw new InviteError("already-paired");
+    if (existingPartners.includes(data.createdBy)) {
+      throw new InviteError("duplicate");
     }
 
     // Deliberately NOT reading the couple document here. The rules only let
@@ -262,8 +309,28 @@ export async function claimInvite(user: User, rawCode: string): Promise<void> {
       members: arrayUnion(user.uid),
       [`names.${user.uid}`]: firstName(user),
     });
-    tx.set(meRef, { coupleId: data.coupleId }, { merge: true });
+    // No write back to the user document: membership lives on the jar now,
+    // and duplicating it would just be a second copy to keep in step.
+    return data.coupleId;
   });
+}
+
+/**
+ * Discards a jar nobody has joined, along with the invite pointing at it.
+ *
+ * Only ever reachable for an unpaired jar — the rules enforce that too, so a
+ * shared forest can't be deleted by one half of it. An unpaired jar has no
+ * nights beneath it (you can't release a firefly before pairing), so there is
+ * no subcollection left orphaned by deleting the parent.
+ */
+export async function deleteJar(
+  coupleId: string,
+  inviteCode: string | null,
+): Promise<void> {
+  const batch = writeBatch(db());
+  batch.delete(doc(db(), "couples", coupleId));
+  if (inviteCode) batch.delete(doc(db(), "invites", inviteCode));
+  await batch.commit();
 }
 
 export async function setColour(
@@ -299,5 +366,7 @@ export async function recordTap(
       at: serverTimestamp(),
     }),
     setDoc(nightRef, { totals: { [uid]: increment(1) } }, { merge: true }),
+    // Lets the shelf lead with whichever jar is most alive tonight.
+    updateDoc(doc(db(), "couples", coupleId), { lastTapAt: serverTimestamp() }),
   ]);
 }

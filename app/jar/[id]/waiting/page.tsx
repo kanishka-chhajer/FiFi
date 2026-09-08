@@ -1,25 +1,27 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Stage from "@/components/Stage";
 import { Footer, PrimaryButton, TextLink } from "@/components/ui";
-import { useSession } from "@/lib/session";
+import { useJar, useSession } from "@/lib/session";
 
 export default function Waiting() {
   const router = useRouter();
+  const id = String(useParams().id);
   const session = useSession();
+  const jar = useJar(id);
 
   // The couple document is live, so the moment they claim the invite this
   // fires on its own — no polling, no refresh.
   useEffect(() => {
     if (session.loading) return;
     if (!session.signedIn) router.replace("/");
-    else if (!session.hasJar) router.replace("/pair");
-    else if (session.paired) router.replace("/jar");
-  }, [session, router]);
+    else if (!jar.found) router.replace("/jars");
+    else if (jar.paired) router.replace(`/jar/${id}`);
+  }, [session, jar, id, router]);
 
-  const code = session.inviteCode ?? "————————";
+  const code = jar.inviteCode ?? "————————";
 
   const shareAgain = async () => {
     const url = `${window.location.origin}/pair/join?code=${code}`;

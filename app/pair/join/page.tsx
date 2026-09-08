@@ -35,7 +35,7 @@ const MESSAGES: Record<string, string> = {
   "not-found": "No jar with that code. Check the letters and numbers?",
   "already-claimed": "That jar already has two people in it.",
   "own-invite": "That's your own code — send it to them instead.",
-  "already-paired": "You're already in a jar.",
+  duplicate: "You two already share a jar. Open it from your shelf.",
 };
 
 export default function PairJoinPage() {
@@ -73,8 +73,10 @@ function PairJoin() {
     setBusy(true);
     setError(null);
     try {
-      await session.join(`${code.slice(0, LETTERS)}-${code.slice(LETTERS)}`);
-      router.push("/firefly");
+      const id = await session.join(
+        `${code.slice(0, LETTERS)}-${code.slice(LETTERS)}`,
+      );
+      router.push(`/jar/${id}/firefly`);
     } catch (e) {
       const key = e instanceof InviteError ? e.code : "";
       setError(MESSAGES[key] ?? "Could not join that jar. Try again?");

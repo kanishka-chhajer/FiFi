@@ -123,7 +123,7 @@ export default function JarScreen() {
 
         {/* ---- top bar ---- */}
         <div
-          className="absolute inset-x-5 flex items-center justify-between"
+          className="absolute inset-x-5 flex items-start justify-between"
           style={{ top: "calc(env(safe-area-inset-top, 0px) + 56px)" }}
         >
           {/* The only way back to the shelf — without it a jar is a dead end. */}
@@ -145,12 +145,14 @@ export default function JarScreen() {
             </Pill>
           )}
 
-          <span className="flex items-center gap-2">
-            <IconButton label="Your nights" href={`/jar/${id}/nights`}>
-              <HistoryIcon />
-            </IconButton>
+          {/* Stacked rather than side by side: three controls in one row left
+              the centre pill too little width for a long name plus counts. */}
+          <span className="flex flex-col gap-2">
             <IconButton label="Settings" href={`/jar/${id}/settings`}>
               <SettingsIcon />
+            </IconButton>
+            <IconButton label="Your nights" href={`/jar/${id}/nights`}>
+              <HistoryIcon />
             </IconButton>
           </span>
         </div>

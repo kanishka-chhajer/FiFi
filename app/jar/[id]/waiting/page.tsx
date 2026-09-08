@@ -47,7 +47,12 @@ export default function Waiting() {
   return (
     <Stage veil={0.86}>
       {/* The jar breathes slowly rather than spinning — no spinners here. */}
-      <div className="absolute left-[33.08%] top-[34%] w-[30.77%]">
+      {/*
+        The jar art is about 1.9x as tall as it is wide, so at the old 30.77%
+        it reached down past 62% — where the heading starts. Narrower and
+        higher, it clears the text with room to spare.
+      */}
+      <div className="absolute left-1/2 top-[29%] w-[27.5%] -translate-x-1/2">
         <span className="waiting-halo pointer-events-none absolute left-1/2 top-[58%] -translate-x-1/2 -translate-y-1/2" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

@@ -29,6 +29,8 @@ export interface SessionValue {
   loading: boolean;
 
   uid: string | null;
+  /** which account you're signed in as — so you can tell if it's the wrong one */
+  email: string | null;
   signedIn: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -127,6 +129,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       configured,
       loading: authLoading || !jarsLoaded,
       uid,
+      email: user?.email ?? null,
       signedIn: Boolean(user),
       signIn,
       signOut,
@@ -193,6 +196,8 @@ export interface JarValue {
   chooseResetHour: (h: number) => Promise<void>;
   chooseCooldown: (mins: number) => Promise<void>;
   releaseFirefly: () => Promise<void>;
+  /** Unpairs — the jar leaves both shelves. */
+  leaveJar: () => Promise<void>;
 }
 
 /**
@@ -242,6 +247,11 @@ export function useJar(id: string): JarValue {
     await repo.recordTap(jar.id, uid, nightIdFor(new Date(), resetHour));
   }, [jar, uid, resetHour]);
 
+  const leaveJar = useCallback(async () => {
+    if (!jar || !uid) throw new Error("no such jar");
+    await repo.endJar(jar.id, uid);
+  }, [jar, uid]);
+
   return useMemo(() => {
     const partnerName =
       (partnerUid && jar?.names?.[partnerUid]) || "your person";
@@ -263,6 +273,7 @@ export function useJar(id: string): JarValue {
       chooseResetHour,
       chooseCooldown,
       releaseFirefly,
+      leaveJar,
     };
   }, [
     id,
@@ -275,6 +286,7 @@ export function useJar(id: string): JarValue {
     chooseResetHour,
     chooseCooldown,
     releaseFirefly,
+    leaveJar,
   ]);
 }
 

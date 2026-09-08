@@ -53,6 +53,14 @@ export interface CoupleDoc {
   createdAt?: Timestamp;
   /** Stamped on every release, so the shelf can lead with the liveliest jar. */
   lastTapAt?: Timestamp;
+  /**
+   * Set when someone unpairs. The jar leaves both shelves but the documents
+   * stay: deleting the jar would orphan every night and tap underneath it,
+   * because Firestore does not cascade deletes to subcollections.
+   */
+  ended?: boolean;
+  endedAt?: Timestamp;
+  endedBy?: string;
 }
 
 /** A jar with its id, which is how every screen refers to one. */
@@ -140,10 +148,13 @@ export function watchMyJars(uid: string, cb: (jars: Jar[]) => void) {
   return onSnapshot(
     q,
     (snap) => {
-      const jars = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as CoupleDoc),
-      }));
+      const jars = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as CoupleDoc) }))
+        // An ended jar is gone for both people. Filtered here rather than in
+        // the query so it needs no extra index, and a plain boolean rather
+        // than the timestamp so it disappears on the local write instead of
+        // waiting for the server to answer.
+        .filter((j) => !j.ended);
       jars.sort((a, b) => when(b) - when(a));
       cb(jars);
     },
@@ -340,6 +351,19 @@ export async function deleteJar(
   batch.delete(doc(db(), "couples", coupleId));
   if (inviteCode) batch.delete(doc(db(), "invites", inviteCode));
   await batch.commit();
+}
+
+/**
+ * Unpairs a shared jar. It leaves both shelves at once — a jar is one object
+ * held between two people, so there is no version of this that ends it for
+ * you and leaves it standing for them.
+ */
+export async function endJar(coupleId: string, uid: string): Promise<void> {
+  await updateDoc(doc(db(), "couples", coupleId), {
+    ended: true,
+    endedAt: serverTimestamp(),
+    endedBy: uid,
+  });
 }
 
 export async function setColour(

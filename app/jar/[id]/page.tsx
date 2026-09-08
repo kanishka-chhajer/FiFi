@@ -169,7 +169,7 @@ export default function JarScreen() {
         {/* ---- hint, at y=704 of 844 in Figma ---- */}
         <div className="absolute inset-x-0 top-[83.4%] flex justify-center">
           <span
-            className={`rounded-hint px-4 py-2 text-center font-body text-[10px] leading-snug backdrop-blur-sm ${
+            className={`rounded-hint px-5 py-2.5 text-center font-body text-[13px] leading-[1.45] backdrop-blur-sm ${
               nudged
                 ? "bg-scrim/80 text-[#FFD37A]"
                 : "bg-scrim/60 text-text-on-scrim"

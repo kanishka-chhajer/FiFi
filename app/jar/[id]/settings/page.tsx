@@ -1,8 +1,18 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import Stage from "@/components/Stage";
+import {
+  ActionRow,
+  Chevron,
+  Dot,
+  Group,
+  GroupLabel,
+  LinkRow,
+  Row,
+  Value,
+} from "@/components/settings";
 import { BackButton } from "@/components/ui";
 import {
   colourById,
@@ -12,13 +22,8 @@ import {
   labelCooldown,
   type FireflyColourId,
 } from "@/lib/constants";
-import {
-  useHapticsSupported,
-  setHapticsEnabled,
-  useHapticsEnabled,
-} from "@/lib/haptics";
 import { labelHour } from "@/lib/night";
-import { useJar, useSession } from "@/lib/session";
+import { useJar } from "@/lib/session";
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
@@ -32,10 +37,9 @@ function startOfLabel(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-export default function Settings() {
+export default function JarSettings() {
   const router = useRouter();
   const id = String(useParams().id);
-  const session = useSession();
   const jar = useJar(id);
 
   const theirs = colourById(jar.partnerColour);
@@ -117,19 +121,23 @@ export default function Settings() {
 
         <GroupLabel>MORE</GroupLabel>
         <Group>
-          <Row label="Add to home screen">
-            <Chevron />
-          </Row>
-          <HapticsRow />
-          <ActionRow
-            label="Sign out"
-            onClick={async () => {
-              await session.signOut();
-              router.replace("/");
-            }}
-            last
-          />
+          {/* Haptics and signing out are account-wide, not properties of this
+              jar — and burying sign-out in here stranded anyone who signed in
+              with the wrong account and so had no jar to open. */}
+          <LinkRow label="Account settings" href="/settings" last />
         </Group>
+
+        {jar.paired && (
+          <div className="mt-3">
+            <Group>
+              <UnpairRow
+                name={jar.partnerName}
+                onLeave={jar.leaveJar}
+                onDone={() => router.replace("/jars")}
+              />
+            </Group>
+          </div>
+        )}
 
         <p className="py-5 text-center font-body text-[12px] text-text-dim">
           {jar.inviteCode ? `Jar code ${jar.inviteCode}` : ""}
@@ -140,6 +148,84 @@ export default function Settings() {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Ending the jar, behind a confirmation that says what actually happens.
+ *
+ * Unpairing is mutual: a jar is one object two people hold, so there is no
+ * version that ends it for you and leaves it standing for them. The wording
+ * has to be honest about that before the tap, not after.
+ */
+function UnpairRow({
+  name,
+  onLeave,
+  onDone,
+}: {
+  name: string;
+  onLeave: () => Promise<void>;
+  onDone: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const leave = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onLeave();
+      onDone();
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      console.error("[fifi] unpair failed:", code || e);
+      setError(`Could not unpair${code ? ` (${code})` : ""}.`);
+      setBusy(false);
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <ActionRow
+        label={`Unpair with ${name}`}
+        onClick={() => setConfirming(true)}
+        last
+      />
+    );
+  }
+
+  return (
+    <div className="px-3.5 py-[13px]">
+      <p className="font-body text-[13.5px] text-text-primary">
+        Unpair with {name}?
+      </p>
+      <p className="mt-0.5 font-body text-[12px] leading-[1.45] text-text-dim">
+        The jar closes for both of you, and every night you filled together
+        goes with it. This can&rsquo;t be undone.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void leave()}
+          className="rounded-pill bg-[#FF9E8F]/15 px-3.5 py-1.5 font-body text-[12.5px] text-[#FF9E8F] disabled:opacity-50"
+        >
+          {busy ? "Unpairing…" : "Unpair"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirming(false)}
+          className="rounded-pill bg-white/[0.06] px-3.5 py-1.5 font-body text-[12.5px] text-text-muted"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 font-body text-[11.5px] text-[#FF9E8F]">{error}</p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Your firefly, changeable in place. Expands into the same six colours the
@@ -224,157 +310,6 @@ function ColourRow({
   );
 }
 
-/** The buzz on release — a per-device preference, not a shared one. */
-function HapticsRow() {
-  const enabled = useHapticsEnabled();
-  const supported = useHapticsSupported();
-
-  if (!supported) {
-    return (
-      <div className="relative border-b border-white/[0.07] px-3.5 py-[13px]">
-        <div className="flex items-center justify-between font-body text-[14px] text-text-primary">
-          <span>Haptics</span>
-          <Value>Unavailable</Value>
-        </div>
-        <p className="mt-1 font-body text-[11.5px] leading-[1.45] text-text-dim">
-          This browser doesn&rsquo;t let web pages vibrate the phone. On iPhone
-          that&rsquo;s true of Safari everywhere, including once FIFI is on your
-          home screen.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <Row label="Haptics">
-      <Toggle
-        on={enabled}
-        label="Haptics"
-        onChange={(next) => {
-          setHapticsEnabled(next);
-          // Buzz on the way on, so you feel what you just switched on.
-          // Turning it off cancels any pulse still running.
-          navigator.vibrate?.(next ? [14, 40, 22] : 0);
-        }}
-      />
-    </Row>
-  );
-}
 
 /* -------------------------------------------------------------------------- */
 
-function GroupLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="mb-2 mt-[18px] px-1 font-body text-[10.5px] font-semibold uppercase tracking-[0.16em] text-text-dim">
-      {children}
-    </p>
-  );
-}
-
-function Group({ children }: { children: ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-group border border-white/10 bg-[#0A1120]/60">
-      {children}
-    </div>
-  );
-}
-
-function Row({
-  label,
-  children,
-  danger,
-  last,
-}: {
-  label: string;
-  children: ReactNode;
-  danger?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <div
-      className={`relative flex items-center justify-between px-3.5 py-[13px] font-body text-[14px] ${
-        danger ? "text-[#FF9E8F]" : "text-text-primary"
-      } ${last ? "" : "border-b border-white/[0.07]"}`}
-    >
-      <span>{label}</span>
-      <span className="flex items-center gap-2">{children}</span>
-    </div>
-  );
-}
-
-function ActionRow({
-  label,
-  onClick,
-  last,
-}: {
-  label: string;
-  onClick: () => void;
-  last?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center justify-between px-3.5 py-[13px] text-left font-body text-[14px] text-[#FF9E8F] ${
-        last ? "" : "border-b border-white/[0.07]"
-      }`}
-    >
-      <span>{label}</span>
-      <Chevron />
-    </button>
-  );
-}
-
-function Value({ children }: { children: ReactNode }) {
-  return <span className="font-body text-[13px] text-text-muted">{children}</span>;
-}
-
-function Dot({ hex }: { hex: string }) {
-  return (
-    <span
-      className="inline-block size-2.5 shrink-0 rounded-full"
-      style={{ backgroundColor: hex, boxShadow: `0 0 7px 1px ${hex}` }}
-    />
-  );
-}
-
-function Chevron({ open }: { open?: boolean }) {
-  return (
-    <span
-      className={`text-[16px] leading-none text-text-dim transition-transform ${
-        open ? "rotate-90" : ""
-      }`}
-    >
-      ›
-    </span>
-  );
-}
-
-function Toggle({
-  on,
-  label,
-  onChange,
-}: {
-  on: boolean;
-  label: string;
-  onChange: (next: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`relative block h-6 w-10 shrink-0 rounded-full transition-colors ${
-        on ? "bg-gradient-to-b from-gold-top to-gold-bottom" : "bg-white/15"
-      }`}
-    >
-      <span
-        className={`absolute top-[3px] size-[18px] rounded-full transition-all ${
-          on ? "left-[19px] bg-[#2A3348]" : "left-[3px] bg-[#CDD8E6]"
-        }`}
-      />
-    </button>
-  );
-}

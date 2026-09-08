@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SettingsIcon } from "@/components/icons";
 import Stage from "@/components/Stage";
 import { Content, Footer, PrimaryButton, TextLink } from "@/components/ui";
 import {
@@ -35,9 +36,20 @@ export default function Jars() {
   return (
     <Stage veil={0.9}>
       <Content>
-        <h1 className="font-display text-[26px] font-bold text-text-primary">
-          Your jars
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="font-display text-[26px] font-bold text-text-primary">
+            Your jars
+          </h1>
+          {/* The shelf is the only screen you reach with no jars, so account
+              settings — and signing out — have to be reachable from here. */}
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className="-mr-1 grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-text-dim"
+          >
+            <SettingsIcon />
+          </Link>
+        </div>
         <p className="mt-1 font-body text-[13px] text-text-dim">
           {session.loading
             ? " "

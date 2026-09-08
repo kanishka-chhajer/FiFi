@@ -13,7 +13,6 @@ import {
   PARTNER_FALLBACK_COLOUR,
 } from "@/lib/constants";
 import { useCooldown, useTonight } from "@/lib/forest";
-import { useLockScroll } from "@/lib/lock-scroll";
 import { nextReset } from "@/lib/night";
 import { useJar, useSession } from "@/lib/session";
 
@@ -30,8 +29,6 @@ export default function JarScreen() {
   const jar = useJar(id);
   const { fireflies } = useTonight(jar.found ? id : null, jar.nightId);
   const cooldown = useCooldown(jar.found ? id : null, jar.cooldownMins);
-
-  useLockScroll();
 
   // Flashes the hint gold when a tap is refused, so the jar acknowledges the
   // gesture instead of just ignoring it.
@@ -98,22 +95,23 @@ export default function JarScreen() {
     <main className="flex h-screen h-dvh justify-center overflow-hidden bg-night-deep">
       <div className="relative h-full w-full max-w-[440px] overflow-hidden">
         {/*
-          Figma places the 719x1159 background at (-315,-57) inside the
-          390x844 frame — a hard crop to the right of the artwork, which is
-          why neither the moon nor the mountains appear on this screen.
+          Figma places the 719x1159 background at (-315,-57) inside the 390x844
+          frame — a crop to the right of the artwork, which is why neither the
+          moon nor the mountains appear here.
+
+          Reproduced with object-cover and an object-position rather than the
+          literal percentages, which only covered at the one aspect ratio they
+          were measured against: on a taller phone the artwork ran out and left
+          a band of bare background across the bottom. Cover fills the frame at
+          any shape; the position keeps the same part of the scene in view.
         */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/art/night-bg.svg"
           alt=""
           draggable={false}
-          className="no-select absolute max-w-none"
-          style={{
-            width: "184.36%",
-            height: "137.32%",
-            left: "-80.77%",
-            top: "-6.75%",
-          }}
+          className="no-select absolute inset-0 h-full w-full object-cover"
+          style={{ objectPosition: "71% 41%" }}
         />
 
         <FireflyCanvas fireflies={fireflies} jar={JAR_MOUTH} colours={colours} />

@@ -45,7 +45,7 @@ export default function Jars() {
           <Link
             href="/settings"
             aria-label="Settings"
-            className="-mr-1 grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-text-dim"
+            className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-text-dim"
           >
             <SettingsIcon />
           </Link>

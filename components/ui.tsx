@@ -29,9 +29,12 @@ export function Body({ children }: { children: ReactNode }) {
 }
 
 /**
- * `fallback` matters more than it looks. An invite link opens in a fresh tab
- * with no history, so router.back() has nowhere to go and the button appears
- * dead — which is exactly what happens to anyone arriving from a shared link.
+ * Ordinary back, with a floor under it.
+ *
+ * Normally this retraces history, which is what people expect. The exception
+ * is arriving from an invite link tapped in a chat: that opens a fresh tab
+ * whose only history entry is this page, so router.back() has nowhere to go
+ * and the button appears dead. In that one case it lands on the shelf instead.
  */
 export function BackButton({ fallback = "/jars" }: { fallback?: string } = {}) {
   const router = useRouter();
@@ -39,7 +42,7 @@ export function BackButton({ fallback = "/jars" }: { fallback?: string } = {}) {
     <button
       type="button"
       onClick={() => {
-        // A fresh tab has a single entry: this page.
+        // A tab opened straight onto this page has a single entry.
         if (window.history.length > 1) router.back();
         else router.replace(fallback);
       }}
@@ -68,7 +71,11 @@ export function BackButton({ fallback = "/jars" }: { fallback?: string } = {}) {
 export function Content({ children }: { children: ReactNode }) {
   return (
     <div
-      className="absolute inset-x-6 overflow-y-auto overscroll-contain"
+      // overflow-x must be pinned explicitly: setting only overflow-y makes
+      // the other axis compute to `auto` rather than staying `visible`, so a
+      // few stray pixels of overhang turn into a sideways scroll of the whole
+      // screen.
+      className="absolute inset-x-6 overflow-y-auto overflow-x-hidden overscroll-contain"
       style={{
         top: "calc(env(safe-area-inset-top, 0px) + 110px)",
         // 30px footer offset + a button, its gap, and the text link beneath.

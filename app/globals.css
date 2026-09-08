@@ -51,6 +51,13 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /*
+   * Every screen is a one-viewport frame that scrolls internally where it
+   * needs to, so the document itself never should. When it did, you could
+   * drag the whole app up and see bare background below the artwork — the
+   * night-bg only ever covers the frame, not the space past it.
+   */
+  overflow: hidden;
 }
 
 /* The core gesture is a double-tap. Without this Safari zooms instead. */

@@ -13,6 +13,7 @@ import {
   PARTNER_FALLBACK_COLOUR,
 } from "@/lib/constants";
 import { useCooldown, useTonight } from "@/lib/forest";
+import { useLockScroll } from "@/lib/lock-scroll";
 import { nextReset } from "@/lib/night";
 import { useJar, useSession } from "@/lib/session";
 
@@ -29,6 +30,8 @@ export default function JarScreen() {
   const jar = useJar(id);
   const { fireflies } = useTonight(jar.found ? id : null, jar.nightId);
   const cooldown = useCooldown(jar.found ? id : null, jar.cooldownMins);
+
+  useLockScroll();
 
   // Flashes the hint gold when a tap is refused, so the jar acknowledges the
   // gesture instead of just ignoring it.
@@ -90,8 +93,10 @@ export default function JarScreen() {
   }, [jar.nightId]);
 
   return (
-    <main className="flex min-h-dvh justify-center bg-night-deep">
-      <div className="relative h-dvh w-full max-w-[440px] overflow-hidden">
+    // h-dvh, not min-h-dvh: the forest is a fixed composition with nothing
+    // below the fold, so the frame should never be taller than the window.
+    <main className="flex h-screen h-dvh justify-center overflow-hidden bg-night-deep">
+      <div className="relative h-full w-full max-w-[440px] overflow-hidden">
         {/*
           Figma places the 719x1159 background at (-315,-57) inside the
           390x844 frame — a hard crop to the right of the artwork, which is

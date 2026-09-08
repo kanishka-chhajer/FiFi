@@ -21,8 +21,8 @@ interface Props {
 
 export default function Stage({ children, bg = "default", veil = 0 }: Props) {
   return (
-    <main className="flex min-h-dvh justify-center bg-night-deep">
-      <div className="relative h-dvh w-full max-w-[440px] overflow-hidden">
+    <main className="flex min-h-screen min-h-dvh justify-center bg-night-deep">
+      <div className="relative h-screen h-dvh w-full max-w-[440px] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={BACKGROUNDS[bg]}

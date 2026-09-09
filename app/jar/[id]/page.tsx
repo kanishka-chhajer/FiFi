@@ -96,15 +96,11 @@ export default function JarScreen() {
     <main className="flex frame justify-center overflow-hidden bg-night-deep">
       <div className="relative h-full w-full max-w-[440px] overflow-hidden">
         {/*
-          Figma places the 719x1159 background at (-315,-57) inside the 390x844
-          frame — a crop to the right of the artwork, which is why neither the
-          moon nor the mountains appear here.
-
-          Reproduced with object-cover and an object-position rather than the
-          literal percentages, which only covered at the one aspect ratio they
-          were measured against: on a taller phone the artwork ran out and left
-          a band of bare background across the bottom. Cover fills the frame at
-          any shape; the position keeps the same part of the scene in view.
+          Drawn portrait at 880x1760, so it needs no offset framing — cover
+          plus the default centre is enough. The old artwork was a wide
+          composition being cropped hard to the right, which is why it used to
+          carry an object-position and still ran out at the bottom on a tall
+          phone.
         */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -112,7 +108,6 @@ export default function JarScreen() {
           alt=""
           draggable={false}
           className="no-select absolute inset-0 h-full w-full object-cover"
-          style={{ objectPosition: "71% 41%" }}
         />
 
         <FireflyCanvas fireflies={fireflies} jar={JAR_MOUTH} colours={colours} />
